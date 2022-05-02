@@ -27,6 +27,9 @@ import { CreateFeatureSchema } from '../../../openapi/spec/create-feature-schema
 import { FeatureSchema } from '../../../openapi/spec/feature-schema';
 import { serializeDates } from '../../../util/serialize-dates';
 import { featuresResponse } from '../../../openapi/spec/features-response';
+import { emptyResponse } from '../../../openapi/spec/empty-response';
+import { updateStrategyRequest } from '../../../openapi/spec/update-strategy-request';
+import { UpdateStrategySchema } from '../../../openapi/spec/update-strategy-schema';
 
 interface FeatureStrategyParams {
     projectId: string;
@@ -45,12 +48,6 @@ interface ProjectParam {
 
 interface StrategyIdParams extends FeatureStrategyParams {
     strategyId: string;
-}
-
-interface StrategyUpdateBody {
-    name?: string;
-    constraints?: IConstraint[];
-    parameters?: object;
 }
 
 const PATH = '/:projectId/features';
@@ -79,11 +76,13 @@ export default class ProjectFeaturesController extends Controller {
         this.logger = config.getLogger('/admin-api/project/features.ts');
 
         this.get(`${PATH_ENV}`, this.getEnvironment);
+
         this.post(
             `${PATH_ENV}/on`,
             this.toggleEnvironmentOn,
             UPDATE_FEATURE_ENVIRONMENT,
         );
+
         this.post(
             `${PATH_ENV}/off`,
             this.toggleEnvironmentOff,
@@ -91,22 +90,34 @@ export default class ProjectFeaturesController extends Controller {
         );
 
         this.get(`${PATH_STRATEGIES}`, this.getStrategies);
+
         this.post(
             `${PATH_STRATEGIES}`,
             this.addStrategy,
             CREATE_FEATURE_STRATEGY,
         );
+
         this.get(`${PATH_STRATEGY}`, this.getStrategy);
-        this.put(
-            `${PATH_STRATEGY}`,
-            this.updateStrategy,
-            UPDATE_FEATURE_STRATEGY,
-        );
+
+        this.route({
+            method: 'put',
+            path: PATH_STRATEGY,
+            handler: this.updateStrategy,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['admin'],
+                    requestBody: updateStrategyRequest,
+                    responses: { 200: emptyResponse },
+                }),
+            ],
+        });
+
         this.patch(
             `${PATH_STRATEGY}`,
             this.patchStrategy,
             UPDATE_FEATURE_STRATEGY,
         );
+
         this.delete(
             `${PATH_STRATEGY}`,
             this.deleteStrategy,
@@ -346,7 +357,12 @@ export default class ProjectFeaturesController extends Controller {
     }
 
     async updateStrategy(
-        req: IAuthRequest<StrategyIdParams, any, StrategyUpdateBody, any>,
+        req: IAuthRequest<
+            StrategyIdParams,
+            IStrategyConfig,
+            UpdateStrategySchema,
+            any
+        >,
         res: Response,
     ): Promise<void> {
         const { strategyId, environment, projectId, featureName } = req.params;
